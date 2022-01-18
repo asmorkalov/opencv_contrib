@@ -53,7 +53,7 @@ namespace cv { namespace cuda { namespace device
         /////////////////////////////////////// Stereo BM ////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////
 
-        #define ROWSperTHREAD 21     // the number of rows a thread will process
+        #define ROWSperTHREAD 1     // the number of rows a thread will process
 
         #define BLOCK_W 128          // the thread block width (464)
         #define N_DISPARITIES 8
@@ -126,73 +126,6 @@ namespace cv { namespace cuda { namespace device
         }
 
         template<int RADIUS>
-        __device__ void StepDown(int idx1, int idx2, unsigned char* imageL, unsigned char* imageR, int d, volatile unsigned int *col_ssd)
-        {
-            unsigned char leftPixel1;
-            unsigned char leftPixel2;
-            unsigned char rightPixel1[8];
-            unsigned char rightPixel2[8];
-            unsigned int diff1, diff2;
-
-            leftPixel1 = imageL[idx1];
-            leftPixel2 = imageL[idx2];
-
-            idx1 = idx1 - d;
-            idx2 = idx2 - d;
-
-            rightPixel1[7] = imageR[idx1 - 7];
-            rightPixel1[0] = imageR[idx1 - 0];
-            rightPixel1[1] = imageR[idx1 - 1];
-            rightPixel1[2] = imageR[idx1 - 2];
-            rightPixel1[3] = imageR[idx1 - 3];
-            rightPixel1[4] = imageR[idx1 - 4];
-            rightPixel1[5] = imageR[idx1 - 5];
-            rightPixel1[6] = imageR[idx1 - 6];
-
-            rightPixel2[7] = imageR[idx2 - 7];
-            rightPixel2[0] = imageR[idx2 - 0];
-            rightPixel2[1] = imageR[idx2 - 1];
-            rightPixel2[2] = imageR[idx2 - 2];
-            rightPixel2[3] = imageR[idx2 - 3];
-            rightPixel2[4] = imageR[idx2 - 4];
-            rightPixel2[5] = imageR[idx2 - 5];
-            rightPixel2[6] = imageR[idx2 - 6];
-
-            //See above:  #define COL_SSD_SIZE (BLOCK_W + 2 * RADIUS)
-            diff1 = leftPixel1 - rightPixel1[0];
-            diff2 = leftPixel2 - rightPixel2[0];
-            col_ssd[0 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[1];
-            diff2 = leftPixel2 - rightPixel2[1];
-            col_ssd[1 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[2];
-            diff2 = leftPixel2 - rightPixel2[2];
-            col_ssd[2 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[3];
-            diff2 = leftPixel2 - rightPixel2[3];
-            col_ssd[3 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[4];
-            diff2 = leftPixel2 - rightPixel2[4];
-            col_ssd[4 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[5];
-            diff2 = leftPixel2 - rightPixel2[5];
-            col_ssd[5 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[6];
-            diff2 = leftPixel2 - rightPixel2[6];
-            col_ssd[6 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-
-            diff1 = leftPixel1 - rightPixel1[7];
-            diff2 = leftPixel2 - rightPixel2[7];
-            col_ssd[7 * (BLOCK_W + 2 * RADIUS)] += SQ(diff2) - SQ(diff1);
-        }
-
-        template<int RADIUS>
         __device__ void InitColSSD(int x_tex, int y_tex, int im_pitch, unsigned char* imageL, unsigned char* imageR, int d, volatile unsigned int *col_ssd)
         {
             unsigned char leftPixel1;
@@ -236,8 +169,8 @@ namespace cv { namespace cuda { namespace device
             uint* batch_ssds = line_ssds + 2;
 
             uint line_ssd_tails[3*ROWSperTHREAD];
-            uchar uniqueness_approved[ROWSperTHREAD];
-            uchar local_disparity[ROWSperTHREAD];
+            uchar uniqueness_approved = 1;
+            uchar local_disparity = 0;
 
             volatile unsigned int *col_ssd = col_ssd_cache + BLOCK_W + threadIdx.x;
             volatile unsigned int *col_ssd_extra = threadIdx.x < (2 * RADIUS) ? col_ssd + BLOCK_W : 0;
@@ -249,15 +182,11 @@ namespace cv { namespace cuda { namespace device
             unsigned char* disparImage = disp.data + X + Y * disp.step;
             float thresh_scale;
 
-            int end_row = ::min(ROWSperTHREAD, cheight - Y - RADIUS);
             int y_tex;
             int x_tex = X - RADIUS;
 
             if (x_tex >= cwidth)
                 return;
-
-            for(int i = 0; i < ROWSperTHREAD; i++)
-                local_disparity[i] = 0;
 
             for(int i = 0; i < 3*ROWSperTHREAD; i++)
             {
@@ -269,10 +198,6 @@ namespace cv { namespace cuda { namespace device
                 batch_ssds[6] = UINT_MAX;
                 batch_ssds[7] = UINT_MAX;
                 thresh_scale = (1.0 + uniquenessRatio / 100.0f);
-                for(int i = 0; i < ROWSperTHREAD; i++)
-                {
-                    uniqueness_approved[i] = 1;
-                }
             }
 
             for(int d = STEREO_MIND; d < maxdisp; d += STEREO_DISP_STEP)
@@ -312,19 +237,19 @@ namespace cv { namespace cuda { namespace device
                             line_ssds[1] = line_ssd_tails[3*0 + 2];
 
                             float thresh = thresh_scale * opt;
-                            int dtest = local_disparity[0];
+                            int dtest = local_disparity;
 
                             if(batch_opt.x < last_opt)
                             {
-                                uniqueness_approved[0] = 1;
+                                uniqueness_approved = 1;
                                 dtest = d + batch_opt.y;
-                                if ((local_disparity[0] < dtest-1 || local_disparity[0] > dtest+1) && (last_opt <= thresh))
+                                if ((local_disparity < dtest-1 || local_disparity > dtest+1) && (last_opt <= thresh))
                                 {
-                                    uniqueness_approved[0] = 0;
+                                    uniqueness_approved = 0;
                                 }
                             }
 
-                            if(uniqueness_approved[0])
+                            if(uniqueness_approved)
                             {
                                 // the trial to decompose the code on 2 loops without ld vs dtest makes
                                 // uniqueness check dramatically slow. at least on gf 1080
@@ -332,7 +257,7 @@ namespace cv { namespace cuda { namespace device
                                 {
                                     if ((ld < dtest-1 || ld > dtest+1) && (line_ssds[ld-d+2] <= thresh))
                                     {
-                                        uniqueness_approved[0] = 0;
+                                        uniqueness_approved = 0;
                                         break;
                                     }
                                 }
@@ -346,113 +271,17 @@ namespace cv { namespace cuda { namespace device
                         line_ssd_tails[3*0 + 0] = opt;
                         if (batch_opt.x < last_opt)
                         {
-                            local_disparity[0] = (unsigned char)(d + batch_opt.y);
+                            local_disparity = (unsigned char)(d + batch_opt.y);
                         }
                     }
                 }
-
-                for(int row = 1; row < end_row; row++)
-                {
-                    int idx1 = y_tex * img_step + x_tex;
-                    int idx2 = (y_tex + (2 * RADIUS + 1)) * img_step + x_tex;
-
-                    __syncthreads();
-
-                    StepDown<RADIUS>(idx1, idx2, left, right, d, col_ssd);
-
-                    if (col_ssd_extra)
-                        if (x_tex + BLOCK_W < cwidth)
-                            StepDown<RADIUS>(idx1, idx2, left + BLOCK_W, right + BLOCK_W, d, col_ssd_extra);
-
-                    y_tex += 1;
-
-                    __syncthreads();
-
-                    if (row < cheight - RADIUS - Y)
-                    {
-                        uint2 batch_opt = MinSSD<RADIUS>(col_ssd_cache + threadIdx.x, col_ssd, X, cwidth, batch_ssds);
-                        // For threads that do not satisfy the if condition below("X < cwidth - RADIUS"), previously
-                        // computed "batch_opt" value, which is the result of "MinSSD" function call, is not used at all.
-                        //
-                        // However, since the "MinSSD" function has "__syncthreads" call in its body, those threads
-                        // must also call "MinSSD" to avoid deadlock. (#13850)
-                        //
-                        // From CUDA 9, using "__syncwarp" with proper mask value instead of using "__syncthreads"
-                        // could be an option, but the shared memory access pattern does not allow this option,
-                        // resulting in race condition. (Checked via "cuda-memcheck --tool racecheck")
-
-                        if (X < cwidth - RADIUS)
-                        {
-                            unsigned int last_opt = line_ssd_tails[3*row + 0];
-                            unsigned int opt = ::min(last_opt, batch_opt.x);
-                            if (uniquenessRatio > 0)
-                            {
-                                line_ssds[0] = line_ssd_tails[3*row + 1];
-                                line_ssds[1] = line_ssd_tails[3*row + 2];
-
-                                float thresh = thresh_scale * opt;
-                                int dtest = local_disparity[row];
-
-                                if(batch_opt.x < last_opt)
-                                {
-                                    uniqueness_approved[row] = 1;
-                                    dtest = d + batch_opt.y;
-                                    if ((local_disparity[row] < dtest-1 || local_disparity[row] > dtest+1) && (last_opt <= thresh))
-                                    {
-                                        uniqueness_approved[row] = 0;
-                                    }
-                                }
-
-                                if(uniqueness_approved[row])
-                                {
-                                    for (int ld = 0; ld < N_DISPARITIES + 2; ld++)
-                                    {
-                                        if (((d+ld-2 < dtest-1) || (d+ld-2 > dtest+1)) && (line_ssds[ld] <= thresh))
-                                        {
-                                            uniqueness_approved[row] = 0;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                line_ssd_tails[3*row + 1] = batch_ssds[6];
-                                line_ssd_tails[3*row + 2] = batch_ssds[7];
-                            }
-
-                            line_ssd_tails[3*row + 0] = opt;
-
-                            if (batch_opt.x < last_opt)
-                            {
-                                local_disparity[row] = (unsigned char)(d + batch_opt.y);
-                            }
-                        }
-                    }
-                } // for row loop
-
-                __syncthreads(); // before initializing shared memory at the beginning of next loop
 
             } // for d loop
 
-            for (int row = 0; row < end_row; row++)
-            {
-                minSSDImage[row * cminSSD_step] = line_ssd_tails[3*row + 0];
-            }
+            minSSDImage[0] = line_ssd_tails[0];
 
-            if (uniquenessRatio > 0)
-            {
-                for (int row = 0; row < end_row; row++)
-                {
-                    // drop disparity for pixel where uniqueness requirement was not satisfied (zero value)
-                    disparImage[disp.step * row] = local_disparity[row] * uniqueness_approved[row];
-                }
-            }
-            else
-            {
-                for (int row = 0; row < end_row; row++)
-                {
-                    disparImage[disp.step * row] = local_disparity[row];
-                }
-            }
+            // drop disparity for pixel where uniqueness requirement was not satisfied (zero value)
+            disparImage[0] = local_disparity * uniqueness_approved;
         }
 
         template<int RADIUS> void kernel_caller(const PtrStepSzb& left, const PtrStepSzb& right, const PtrStepSzb& disp,
