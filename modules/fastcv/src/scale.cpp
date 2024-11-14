@@ -8,8 +8,6 @@
 namespace cv {
 namespace fastcv {
 
-#ifdef HAVE_FASTCV
-
 void resizeDownBy2(cv::InputArray _src, cv::OutputArray _dst)
 {
     INITIALIZATION_CHECK;
@@ -59,25 +57,6 @@ void resizeDownBy4(cv::InputArray _src, cv::OutputArray _dst)
         CV_Error( cv::Error::StsInternal, "FastCV error: " + s);
     }
 }
-
-#else
-
-void resizeDownBy2(cv::InputArray _src, cv::OutputArray _dst)
-{
-    CV_UNUSED(_src);
-    CV_UNUSED(_dst);
-    CV_Error( cv::Error::StsNotImplemented, "OpenCV was build without FastCV support" );
-}
-
-void resizeDownBy4(cv::InputArray _src, cv::OutputArray _dst)
-{
-    CV_UNUSED(_src);
-    CV_UNUSED(_dst);
-    CV_Error( cv::Error::StsNotImplemented, "OpenCV was build without FastCV support" );
-}
-
-
-#endif
 
 } // fastcv::
 } // cv::

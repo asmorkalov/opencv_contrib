@@ -14,14 +14,11 @@
 #include <opencv2/fastcv.hpp>
 #include <map>
 
-#ifdef HAVE_FASTCV
 #include "fastcv.h"
-#endif
 
 namespace cv {
 namespace fastcv {
 
-#ifdef HAVE_FASTCV
 extern bool isInitialized;
 
 #define INITIALIZATION_CHECK                                                \
@@ -48,7 +45,6 @@ const std::map<fcvStatus, std::string> fcvStatusStrings =
     { FASTCV_EHWQDSP,       "Hardware QDSP failed to respond"},
     { FASTCV_EHWGPU,        "Hardware GPU failed to respond"},
 };
-#endif
 
 } // namespace fastcv
 } // namespace cv

@@ -8,8 +8,6 @@
 namespace cv {
 namespace fastcv {
 
-#ifdef HAVE_FASTCV
-
 static bool isPow2(int x)
 {
     return x && (!(x & (x - 1)));
@@ -67,24 +65,6 @@ void IFFT(InputArray _src, OutputArray _dst)
         CV_Error( cv::Error::StsInternal, "FastCV error: " + s);
     }
 }
-
-#else
-
-void FFT(InputArray _src, OutputArray _dst)
-{
-    CV_UNUSED(_src);
-    CV_UNUSED(_dst);
-    CV_Error( cv::Error::StsNotImplemented, "OpenCV was build without FastCV support" );
-}
-
-void IFFT(InputArray _src, OutputArray _dst)
-{
-    CV_UNUSED(_src);
-    CV_UNUSED(_dst);
-    CV_Error( cv::Error::StsNotImplemented, "OpenCV was build without FastCV support" );
-}
-
-#endif
 
 } // fastcv::
 } // cv::
