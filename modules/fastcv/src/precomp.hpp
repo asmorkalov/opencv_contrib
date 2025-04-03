@@ -82,7 +82,7 @@ namespace dsp {
      (std::cerr << "Allocation check failed for " #mat \
                 << ". Please ensure that cv::fastcv::dsp::fastcvq6init() has been called." \
                 << std::endl, false))
-    
+
     struct FastCvDspContext
     {
     public:

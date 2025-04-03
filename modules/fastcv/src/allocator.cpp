@@ -4,6 +4,7 @@
 */
 
 #include "precomp.hpp"
+#include "dsp_init.hpp"
 
 namespace cv {
 namespace fastcv {
@@ -17,9 +18,13 @@ public:
     cv::UMatData* allocate(int dims, const int* sizes, int type, void* data, size_t* step, cv::AccessFlag flags, cv::UMatUsageFlags usageFlags) const CV_OVERRIDE;
     bool allocate(cv::UMatData* u, cv::AccessFlag accessFlags, cv::UMatUsageFlags usageFlags) const CV_OVERRIDE;
     void deallocate(cv::UMatData* u) const CV_OVERRIDE;
+
+protected:
+    int allocationCount;
 };
 
-FastCVAllocator::FastCVAllocator()
+FastCVAllocator::FastCVAllocator():
+    allocationCount(0);
 {
 }
 
@@ -33,6 +38,13 @@ cv::UMatData* FastCVAllocator::allocate(int dims, const int* sizes, int type,
 {
     CV_UNUSED(flags);
     CV_UNUSED(usageFlags);
+
+    bool zero_Ref = CV_XADD(&(allocationCount), 1) == 1;
+    if (zero_Ref)
+    {
+        CV_LOG_DEBUG(NULL, "FastCV DSP initialization");
+        cv::fastcv::dsp::fastcvq6init();
+    }
 
     size_t total = CV_ELEM_SIZE(type);
     for( int i = dims-1; i >= 0; i-- )
@@ -55,7 +67,7 @@ cv::UMatData* FastCVAllocator::allocate(int dims, const int* sizes, int type,
     u->size = total;
     if(data0)
         u->flags |= cv::UMatData::USER_ALLOCATED;
-    
+
     u->userdata = new std::string("QCOM");
     return u;
 }
@@ -88,6 +100,13 @@ void FastCVAllocator::deallocate(cv::UMatData* u) const
     }
 
     delete u;
+
+    bool zero_Ref = CV_XADD(&(allocationCount), -1) == 0;
+    if (zero_Ref)
+    {
+        CV_LOG_DEBUG(NULL, "FastCV DSP finalization");
+        cv::fastcv::dsp::fastcvq6deinit();
+    }
 }
 
 cv::MatAllocator* getDefaultFastCVAllocator()

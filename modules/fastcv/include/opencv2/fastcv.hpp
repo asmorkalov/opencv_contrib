@@ -31,7 +31,6 @@
 #include "opencv2/fastcv/tracking.hpp"
 #include "opencv2/fastcv/warp.hpp"
 #include "opencv2/fastcv/allocator.hpp"
-#include "opencv2/fastcv/dsp_init.hpp"
 #include "opencv2/fastcv/sad_dsp.hpp"
 
 /**
